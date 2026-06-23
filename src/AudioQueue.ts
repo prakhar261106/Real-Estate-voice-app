@@ -4,6 +4,9 @@ export class AudioBufferQueue {
   private currentSourceNodes: AudioBufferSourceNode[] = [];
   private nextPlayTime: number = 0;
   private onStateChange: (state: 'LISTENING' | 'SPEAKING') => void;
+  // Jitter buffer settings
+  private jitterBuffer: Float32Array[] = [];
+  private readonly BUFFER_THRESHOLD = 3;
 
   constructor(audioCtx: AudioContext, onStateChange: (state: 'LISTENING' | 'SPEAKING') => void) {
     this.audioCtx = audioCtx;
@@ -11,43 +14,63 @@ export class AudioBufferQueue {
   }
 
   public enqueueAndPlay(base64Audio: string) {
-    if (!this.isPlaying) {
-      this.isPlaying = true;
-      if (this.audioCtx.state === "suspended") {
-        this.audioCtx.resume();
-      }
-      this.nextPlayTime = this.audioCtx.currentTime;
-    }
-
     const arrayBuffer = this.base64ToArrayBuffer(base64Audio);
     const float32Array = this.pcm16BitToFloat32(arrayBuffer);
+    
+    // Add to jitter buffer
+    this.jitterBuffer.push(float32Array);
 
-    // Explicitly create buffer with 24000 sample rate
-    const audioBuffer = this.audioCtx.createBuffer(1, float32Array.length, 24000);
-    audioBuffer.getChannelData(0).set(float32Array);
-
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(this.audioCtx.destination);
-
-    const playTime = Math.max(this.audioCtx.currentTime, this.nextPlayTime);
-    source.start(playTime);
-    this.nextPlayTime = playTime + audioBuffer.duration;
-
-    this.currentSourceNodes.push(source);
-
-    source.onended = () => {
-      const idx = this.currentSourceNodes.indexOf(source);
-      if (idx > -1) {
-        this.currentSourceNodes.splice(idx, 1);
+    if (!this.isPlaying) {
+      if (this.jitterBuffer.length >= this.BUFFER_THRESHOLD) {
+        this.isPlaying = true;
+        if (this.audioCtx.state === "suspended") {
+          this.audioCtx.resume();
+        }
+        this.nextPlayTime = this.audioCtx.currentTime + 0.1; // Initial safety buffer
+        this.scheduleBuffer();
       }
+    } else {
+      this.scheduleBuffer();
+    }
+  }
+
+  private scheduleBuffer() {
+    while (this.jitterBuffer.length > 0) {
+      const float32Array = this.jitterBuffer.shift()!;
       
-      // If we've finished playing everything scheduled, return to listening state
-      if (this.currentSourceNodes.length === 0 && this.audioCtx.currentTime >= this.nextPlayTime) {
-        this.isPlaying = false;
-        this.onStateChange('LISTENING');
+      // Explicitly create buffer with 24000 sample rate
+      const audioBuffer = this.audioCtx.createBuffer(1, float32Array.length, 24000);
+      audioBuffer.getChannelData(0).set(float32Array);
+
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioCtx.destination);
+
+      // Check if the buffer ran dry and the context time overtook our scheduled time
+      if (this.audioCtx.currentTime >= this.nextPlayTime) {
+          console.warn('[AudioQueue] Buffer underrun detected. Resyncing play time.');
+          // Add a 100ms safety buffer to allow chunks to build up again
+          this.nextPlayTime = this.audioCtx.currentTime + 0.1; 
       }
-    };
+
+      source.start(this.nextPlayTime);
+      this.nextPlayTime += audioBuffer.duration;
+
+      this.currentSourceNodes.push(source);
+
+      source.onended = () => {
+        const idx = this.currentSourceNodes.indexOf(source);
+        if (idx > -1) {
+          this.currentSourceNodes.splice(idx, 1);
+        }
+        
+        // If we've finished playing everything scheduled, return to listening state
+        if (this.currentSourceNodes.length === 0 && this.audioCtx.currentTime >= this.nextPlayTime && this.jitterBuffer.length === 0) {
+          this.isPlaying = false;
+          this.onStateChange('LISTENING');
+        }
+      };
+    }
   }
 
   public stopAll() {
@@ -55,6 +78,7 @@ export class AudioBufferQueue {
       try { node.stop(); } catch (e) {}
     });
     this.currentSourceNodes = [];
+    this.jitterBuffer = [];
     this.isPlaying = false;
     this.nextPlayTime = 0;
     this.onStateChange('LISTENING');
