@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import { AudioBufferQueue } from '../AudioQueue';
+import { globalAudioStreamer } from '../GlobalAudioStreamer';
 import { TranscriptMessage, ConnectionState } from '../types';
 
 const workletCode = `
@@ -41,7 +41,6 @@ export function useGeminiVoice() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('IDLE');
   const [serverState, setServerState] = useState<'LISTENING' | 'SPEAKING'>('LISTENING');
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
-  const [displayedPropertyIds, setDisplayedPropertyIds] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
@@ -49,7 +48,6 @@ export function useGeminiVoice() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const audioQueueRef = useRef<AudioBufferQueue | null>(null);
 
   const cleanup = useCallback(() => {
     if (wsRef.current) {
@@ -64,9 +62,8 @@ export function useGeminiVoice() {
       workletNodeRef.current.disconnect();
       workletNodeRef.current = null;
     }
-    if (audioQueueRef.current) {
-      audioQueueRef.current.stopAll();
-    }
+    globalAudioStreamer.stopAll();
+    
     if (audioCtxRef.current) {
       audioCtxRef.current.close();
       audioCtxRef.current = null;
@@ -98,10 +95,9 @@ export function useGeminiVoice() {
 
       // 1. Initialize Web Audio API synchronously FIRST to avoid browser permission issues
       const inputAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      const outputAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioCtxRef.current = inputAudioCtx;
       
-      audioQueueRef.current = new AudioBufferQueue(outputAudioCtx, setServerState);
+      globalAudioStreamer.setOnStateChange(setServerState);
 
       // 2. Request microphone
       let stream: MediaStream;
@@ -121,8 +117,8 @@ export function useGeminiVoice() {
         await inputAudioCtx.resume();
         console.log('[Frontend] Input AudioContext resumed successfully.');
       }
-      if (outputAudioCtx.state === 'suspended') {
-        await outputAudioCtx.resume();
+      if (globalAudioStreamer.getContext().state === 'suspended') {
+        await globalAudioStreamer.getContext().resume();
         console.log('[Frontend] Output AudioContext resumed successfully.');
       }
 
@@ -164,9 +160,9 @@ export function useGeminiVoice() {
               
               // Barge-in check
               const maxAmp = Math.max(...float32Array);
-              if (maxAmp > 0.05 && audioQueueRef.current?.isCurrentlyPlaying()) {
+              if (maxAmp > 0.05 && globalAudioStreamer.isCurrentlyPlaying()) {
                 wsRef.current.send(JSON.stringify({ clientContent: { turnComplete: true } }));
-                audioQueueRef.current.stopAll();
+                globalAudioStreamer.stopAll();
               }
             }
           };
@@ -189,20 +185,16 @@ export function useGeminiVoice() {
         }
 
         if (data.interrupted) {
-          audioQueueRef.current?.stopAll();
+          globalAudioStreamer.stopAll();
           return;
         }
 
         if (data.type === 'TOOL_CALL' && data.name === 'display_properties') {
           console.log('[Frontend] Received UI Update Command:', data.args);
+          window.dispatchEvent(new CustomEvent('AI_UI_UPDATE', { detail: data.args }));
           const args = data.args;
-          if (args) {
-            if (args.propertyIds || args.properties) {
-              setDisplayedPropertyIds(args.propertyIds || args.properties || []);
-            }
-            if (args.uiState === 'SHOW_DETAILS' && args.propertyIds && args.propertyIds.length > 0) {
-              navigate(`/property/${args.propertyIds[0]}`);
-            }
+          if (args && args.uiState === 'SHOW_DETAILS' && args.ids && args.ids.length > 0) {
+            navigate(`/property/${args.ids[0]}`);
           }
         }
 
@@ -225,8 +217,7 @@ export function useGeminiVoice() {
 
         if (data.audio) {
            console.log('[Frontend] Received audio chunk from backend, adding to queue...');
-           setServerState('SPEAKING');
-           audioQueueRef.current?.enqueueAndPlay(data.audio);
+           globalAudioStreamer.addBase64Chunk(data.audio);
         }
       };
 
@@ -273,7 +264,6 @@ export function useGeminiVoice() {
     connectionState,
     serverState,
     messages,
-    displayedPropertyIds,
     errorMsg,
     startSession,
     cleanup,

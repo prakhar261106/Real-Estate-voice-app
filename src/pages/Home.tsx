@@ -6,14 +6,23 @@ import { Filter, Home as HomeIcon, MapPin, DollarSign } from 'lucide-react';
 import { useGeminiVoice } from '../hooks/useGeminiVoice';
 
 export function Home() {
+  const [displayedPropertyIds, setDisplayedPropertyIds] = React.useState<string[]>([]);
   const {
     connectionState,
     serverState,
-    displayedPropertyIds,
     errorMsg,
     startSession,
     cleanup
   } = useGeminiVoice();
+
+  React.useEffect(() => {
+      const handleUIUpdate = (event: any) => {
+          console.log("Global Event Caught! Updating UI:", event.detail);
+          setDisplayedPropertyIds(event.detail.ids || []);
+      };
+      window.addEventListener('AI_UI_UPDATE', handleUIUpdate);
+      return () => window.removeEventListener('AI_UI_UPDATE', handleUIUpdate);
+  }, []);
 
   const getOrbState = () => {
     if (connectionState === 'CONNECTING') return 'CONNECTING';
