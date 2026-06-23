@@ -34,7 +34,7 @@ wss.on('connection', (ws) => {
       setup: {
         model: "models/gemini-3.1-flash-live-preview",
         systemInstruction: {
-          parts: [{ text: "Role: You are an expert, highly intelligent Real Estate Consultant. Speak entirely in natural, conversational Hindi mixed with English. Keep responses under 20 seconds. Focus on budget, location, property type, and pushing for a site visit. CRITICAL INSTRUCTION: Whenever you discuss a specific property, you MUST execute the highlight_property function call with its ID to show it to the user." }]
+          parts: [{ text: "Role: You are an expert, highly intelligent Real Estate Consultant. Speak entirely in natural, conversational Hindi mixed with English. Keep responses under 20 seconds. Focus on budget, location, property type, and pushing for a site visit. CRITICAL INSTRUCTION: Whenever you discuss or suggest a specific property or location, YOU MUST immediately execute the 'display_properties' function call. Do not just speak about it, call the tool." }]
         },
         tools: [{
           functionDeclarations: [{
@@ -63,7 +63,41 @@ wss.on('connection', (ws) => {
     if (ws.readyState !== WebSocket.OPEN) return;
     
     try {
-      const response = JSON.parse(data.toString());
+      const rawMsg = data.toString();
+      const response = JSON.parse(rawMsg);
+      
+      // Deep search for functionCall in Gemini's response payload
+      let functionCall = null;
+      if (response?.toolCall) { functionCall = response.toolCall.functionCalls[0]; }
+      else if (response?.serverContent?.modelTurn?.parts?.[0]?.functionCall) {
+          functionCall = response.serverContent.modelTurn.parts[0].functionCall;
+      }
+
+      if (functionCall && functionCall.name === "display_properties") {
+          console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
+          
+          // Send to Frontend React App
+          ws.send(JSON.stringify({ 
+              type: "TOOL_CALL", 
+              name: functionCall.name,
+              args: functionCall.args 
+          }));
+
+          // Reply to Gemini so it continues speaking
+          if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+              geminiWs.send(JSON.stringify({
+                  toolResponse: {
+                      functionResponses: [{
+                          id: functionCall.id,
+                          name: functionCall.name,
+                          response: { status: "OK", message: "UI Updated on client screen." }
+                      }]
+                  }
+              }));
+          }
+      }
+
+      // Handle normal audio/text chunks if they exist
       if (response.serverContent) {
         if (response.serverContent.interrupted) {
           ws.send(JSON.stringify({ interrupted: true }));
@@ -76,32 +110,6 @@ wss.on('connection', (ws) => {
             }
             if (part.inlineData && part.inlineData.data) {
               ws.send(JSON.stringify({ audio: part.inlineData.data }));
-            }
-            if (part.functionCall) {
-              const call = part.functionCall;
-              if (call.name === 'display_properties') {
-                console.log('[Backend] Forwarding TOOL_CALL to Frontend:', call.args);
-                
-                // 1. Send the command to the React Frontend via the client WebSocket
-                ws.send(JSON.stringify({ 
-                    type: 'TOOL_CALL', 
-                    name: call.name, 
-                    args: call.args 
-                }));
-
-                // 2. MUST send a toolResponse back to Gemini immediately
-                if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
-                  geminiWs.send(JSON.stringify({
-                      toolResponse: {
-                          functionResponses: [{
-                              id: call.id,
-                              name: call.name,
-                              response: { status: "Success", message: "UI Updated on client screen." }
-                          }]
-                      }
-                  }));
-                }
-              }
             }
           }
         }

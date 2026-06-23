@@ -1,84 +1,76 @@
 export class AudioBufferQueue {
-  private audioCtx: AudioContext;
-  private isPlaying: boolean = false;
-  private currentSourceNodes: AudioBufferSourceNode[] = [];
+  private context: AudioContext;
   private nextPlayTime: number = 0;
+  private bufferQueue: AudioBuffer[] = [];
+  private isPlaying: boolean = false;
   private onStateChange: (state: 'LISTENING' | 'SPEAKING') => void;
-  // Jitter buffer settings
-  private jitterBuffer: Float32Array[] = [];
-  private readonly BUFFER_THRESHOLD = 3;
 
   constructor(audioCtx: AudioContext, onStateChange: (state: 'LISTENING' | 'SPEAKING') => void) {
-    this.audioCtx = audioCtx;
+    this.context = audioCtx;
     this.onStateChange = onStateChange;
   }
 
   public enqueueAndPlay(base64Audio: string) {
-    const arrayBuffer = this.base64ToArrayBuffer(base64Audio);
-    const float32Array = this.pcm16BitToFloat32(arrayBuffer);
-    
-    // Add to jitter buffer
-    this.jitterBuffer.push(float32Array);
+    // 1. Convert Base64 to Int16 PCM
+    const binaryString = window.atob(base64Audio);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) { 
+        bytes[i] = binaryString.charCodeAt(i); 
+    }
+    const int16Data = new Int16Array(bytes.buffer);
 
-    if (!this.isPlaying) {
-      if (this.jitterBuffer.length >= this.BUFFER_THRESHOLD) {
+    // 2. Convert Int16 to Float32 for Web Audio API
+    const float32Data = new Float32Array(int16Data.length);
+    for (let i = 0; i < int16Data.length; i++) {
+        float32Data[i] = int16Data[i] / 32768.0;
+    }
+
+    // 3. Create AudioBuffer
+    const audioBuffer = this.context.createBuffer(1, float32Data.length, 24000);
+    audioBuffer.getChannelData(0).set(float32Data);
+    
+    this.bufferQueue.push(audioBuffer);
+
+    // 4. Require at least 4 chunks (Jitter Buffer) before starting playback
+    if (!this.isPlaying && this.bufferQueue.length >= 4) {
         this.isPlaying = true;
-        if (this.audioCtx.state === "suspended") {
-          this.audioCtx.resume();
+        if (this.context.state === "suspended") {
+            this.context.resume();
         }
-        this.nextPlayTime = this.audioCtx.currentTime + 0.1; // Initial safety buffer
-        this.scheduleBuffer();
-      }
-    } else {
-      this.scheduleBuffer();
+        this.nextPlayTime = this.context.currentTime + 0.1; // 100ms safety gap
+        this.playNext();
     }
   }
 
-  private scheduleBuffer() {
-    while (this.jitterBuffer.length > 0) {
-      const float32Array = this.jitterBuffer.shift()!;
-      
-      // Explicitly create buffer with 24000 sample rate
-      const audioBuffer = this.audioCtx.createBuffer(1, float32Array.length, 24000);
-      audioBuffer.getChannelData(0).set(float32Array);
-
-      const source = this.audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.audioCtx.destination);
-
-      // Check if the buffer ran dry and the context time overtook our scheduled time
-      if (this.audioCtx.currentTime >= this.nextPlayTime) {
-          console.warn('[AudioQueue] Buffer underrun detected. Resyncing play time.');
-          // Add a 100ms safety buffer to allow chunks to build up again
-          this.nextPlayTime = this.audioCtx.currentTime + 0.1; 
-      }
-
-      source.start(this.nextPlayTime);
-      this.nextPlayTime += audioBuffer.duration;
-
-      this.currentSourceNodes.push(source);
-
-      source.onended = () => {
-        const idx = this.currentSourceNodes.indexOf(source);
-        if (idx > -1) {
-          this.currentSourceNodes.splice(idx, 1);
-        }
-        
-        // If we've finished playing everything scheduled, return to listening state
-        if (this.currentSourceNodes.length === 0 && this.audioCtx.currentTime >= this.nextPlayTime && this.jitterBuffer.length === 0) {
-          this.isPlaying = false;
-          this.onStateChange('LISTENING');
-        }
-      };
+  private playNext() {
+    if (this.bufferQueue.length === 0) {
+        this.isPlaying = false;
+        this.onStateChange('LISTENING');
+        return;
     }
+
+    // Resynchronize if buffer underran
+    if (this.context.currentTime > this.nextPlayTime) {
+        this.nextPlayTime = this.context.currentTime + 0.05;
+    }
+
+    const buffer = this.bufferQueue.shift()!;
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.context.destination);
+    
+    source.start(this.nextPlayTime);
+    this.nextPlayTime += buffer.duration;
+
+    // Schedule next chunk exactly when this one ends
+    source.onended = () => {
+        this.playNext();
+    };
   }
 
   public stopAll() {
-    this.currentSourceNodes.forEach(node => {
-      try { node.stop(); } catch (e) {}
-    });
-    this.currentSourceNodes = [];
-    this.jitterBuffer = [];
+    this.bufferQueue = [];
     this.isPlaying = false;
     this.nextPlayTime = 0;
     this.onStateChange('LISTENING');
@@ -86,23 +78,5 @@ export class AudioBufferQueue {
 
   public isCurrentlyPlaying() {
     return this.isPlaying;
-  }
-
-  private base64ToArrayBuffer(base64: string) {
-    const binaryString = window.atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-
-  private pcm16BitToFloat32(buffer: ArrayBuffer) {
-    const int16Array = new Int16Array(buffer);
-    const float32Array = new Float32Array(int16Array.length);
-    for (let i = 0; i < int16Array.length; i++) {
-      float32Array[i] = int16Array[i] / 32768.0;
-    }
-    return float32Array;
   }
 }
