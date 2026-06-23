@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TwinkleBackground } from '../components/TwinkleBackground';
 import { OrbCanvas } from '../components/Orb';
@@ -7,33 +7,21 @@ import { Filter, Home as HomeIcon, MapPin, DollarSign, Activity } from 'lucide-r
 import { useGeminiVoice } from '../hooks/useGeminiVoice';
 import { DebugPanel } from '../components/DebugPanel';
 
+import { VoiceContext } from '../App';
+
 export function Home() {
-  const [displayedPropertyIds, setDisplayedPropertyIds] = useState<string[]>([]);
-  const [isDebugVisible, setIsDebugVisible] = useState(false);
-  
   const {
+    displayedPropertyIds,
     connectionState,
     serverState,
     errorMsg,
     startSession,
     cleanup,
-    sendText
-  } = useGeminiVoice();
+    sendText,
+    getOrbState
+  } = useContext(VoiceContext);
 
-  React.useEffect(() => {
-      const handleUIUpdate = (event: any) => {
-          console.log("Global Event Caught! Updating UI:", event.detail);
-          setDisplayedPropertyIds(event.detail.location ? [event.detail.location] : []);
-      };
-      window.addEventListener('AI_UI_UPDATE', handleUIUpdate);
-      return () => window.removeEventListener('AI_UI_UPDATE', handleUIUpdate);
-  }, []);
-
-  const getOrbState = () => {
-    if (connectionState === 'CONNECTING') return 'CONNECTING';
-    if (connectionState === 'CONNECTED') return serverState;
-    return 'IDLE';
-  };
+  const [isDebugVisible, setIsDebugVisible] = useState(false);
 
   return (
     <>
