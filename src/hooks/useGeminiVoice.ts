@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import workletUrl from '../worklet.js?url';
 import { AudioBufferQueue } from '../AudioQueue';
 import { TranscriptMessage, ConnectionState } from '../types';
 
@@ -90,9 +91,12 @@ export function useGeminiVoice() {
       }
 
       try {
-        await inputAudioCtx.audioWorklet.addModule("/worklet.js");
+        await inputAudioCtx.audioWorklet.addModule(workletUrl);
       } catch (err) {
-        throw new Error("Failed to load AudioWorklet.");
+        console.error("Failed to load AudioWorklet from:", workletUrl, err);
+        setErrorMsg(`Failed to load AudioWorklet (${workletUrl}). Check console for details.`);
+        setConnectionState('IDLE');
+        return;
       }
 
       // 3. Establish WebSocket connection
