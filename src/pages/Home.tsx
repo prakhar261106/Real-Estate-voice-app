@@ -15,7 +15,8 @@ export function Home() {
     serverState,
     errorMsg,
     startSession,
-    cleanup
+    cleanup,
+    sendText
   } = useGeminiVoice();
 
   React.useEffect(() => {
@@ -112,6 +113,35 @@ export function Home() {
                   {errorMsg}
                 </div>
               )}
+              
+              <div className="mt-6 w-full max-w-md px-4 relative z-50">
+                 <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const text = formData.get('message') as string;
+                    if (text.trim() && connectionState === 'CONNECTED') {
+                       sendText(text);
+                       e.currentTarget.reset();
+                    }
+                 }}>
+                   <div className="relative">
+                     <input 
+                       name="message"
+                       autoComplete="off"
+                       placeholder={connectionState === 'CONNECTED' ? "Message Aura..." : "Connect first to chat..."}
+                       disabled={connectionState !== 'CONNECTED'}
+                       className="w-full bg-black/40 border border-[#06b6d4]/30 rounded-full px-5 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#06b6d4] transition-colors"
+                     />
+                     <button 
+                       type="submit" 
+                       disabled={connectionState !== 'CONNECTED'}
+                       className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#06b6d4]/20 hover:bg-[#06b6d4]/40 text-[#06b6d4] p-2 rounded-full transition-colors"
+                     >
+                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                     </button>
+                   </div>
+                 </form>
+              </div>
           </div>
 
           {/* Right Panel: Property Showcase */}

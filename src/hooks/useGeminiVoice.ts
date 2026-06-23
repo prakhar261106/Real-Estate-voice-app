@@ -147,22 +147,36 @@ export function useGeminiVoice() {
           const workletNode = new AudioWorkletNode(inputAudioCtx, "audio-recorder-worklet");
           workletNodeRef.current = workletNode;
 
+          let audioBuffer: number[] = [];
+
           workletNode.port.onmessage = (event) => {
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
               const float32Array: Float32Array = event.data;
               const pcmBuffer = floatTo16BitPCM(float32Array);
-              
               const uint8Array = new Uint8Array(pcmBuffer);
-              let binary = '';
-              for (let i = 0; i < uint8Array.byteLength; i++) {
-                binary += String.fromCharCode(uint8Array[i]);
-              }
-              const base64 = window.btoa(binary);
               
-              wsRef.current.send(JSON.stringify({ audio: base64 }));
+              for (let i = 0; i < uint8Array.byteLength; i++) {
+                audioBuffer.push(uint8Array[i]);
+              }
+              
+              // Only send if we have collected approx 100ms of data (16000 * 0.1 * 2 bytes = 3200 bytes)
+              if (audioBuffer.length >= 3200) {
+                 let binary = '';
+                 for (let i = 0; i < audioBuffer.length; i++) {
+                   binary += String.fromCharCode(audioBuffer[i]);
+                 }
+                 const base64 = window.btoa(binary);
+                 
+                 wsRef.current.send(JSON.stringify({ audio: base64 }));
+                 audioBuffer = []; // Reset buffer
+              }
               
               // Barge-in check
-              const maxAmp = Math.max(...float32Array);
+              let maxAmp = 0;
+              for (let i = 0; i < float32Array.length; i++) {
+                 if (float32Array[i] > maxAmp) maxAmp = float32Array[i];
+              }
+              
               if (maxAmp > 0.05 && globalAudioStreamer.isCurrentlyPlaying()) {
                 wsRef.current.send(JSON.stringify({ clientContent: { turnComplete: true } }));
                 globalAudioStreamer.stopAll();
@@ -172,6 +186,8 @@ export function useGeminiVoice() {
 
           source.connect(workletNode);
           workletNode.connect(inputAudioCtx.destination);
+          
+          wsRef.current.send(JSON.stringify({ text: "Hello, Aura. Start the conversation." }));
           
         } catch (nodeErr) {
           setErrorMsg("Error initializing audio processor.");

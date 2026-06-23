@@ -52,13 +52,13 @@ export class GlobalAudioStreamer {
         
         this.bufferQueue.push(audioBuffer);
 
-        // 4. Require at least 4 chunks (Jitter Buffer) before starting playback
-        if (!this.isPlaying && this.bufferQueue.length >= 4) {
+        // 4. Require at least 1 chunk before starting playback
+        if (!this.isPlaying && this.bufferQueue.length > 0) {
             this.isPlaying = true;
             if (this.context.state === "suspended") {
                 this.context.resume();
             }
-            this.nextPlayTime = this.context.currentTime + 0.5; // 500ms safety gap
+            this.nextPlayTime = this.context.currentTime + 0.1; // 100ms safety gap
             if (this.onStateChange) this.onStateChange('SPEAKING');
             this.playNext();
         }
