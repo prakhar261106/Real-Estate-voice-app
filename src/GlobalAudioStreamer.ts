@@ -52,8 +52,8 @@ export class GlobalAudioStreamer {
         
         this.bufferQueue.push(audioBuffer);
 
-        // 4. Require at least 1 chunk before starting playback
-        if (!this.isPlaying && this.bufferQueue.length > 0) {
+        // 4. Require at least 4 chunks before starting playback
+        if (!this.isPlaying && this.bufferQueue.length >= 4) {
             this.isPlaying = true;
             if (this.context.state === "suspended") {
                 this.context.resume();
