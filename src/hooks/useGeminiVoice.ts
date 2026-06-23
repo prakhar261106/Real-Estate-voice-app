@@ -152,7 +152,12 @@ export function useGeminiVoice() {
               const float32Array: Float32Array = event.data;
               const pcmBuffer = floatTo16BitPCM(float32Array);
               
-              const base64 = window.btoa(String.fromCharCode(...new Uint8Array(pcmBuffer)));
+              const uint8Array = new Uint8Array(pcmBuffer);
+              let binary = '';
+              for (let i = 0; i < uint8Array.byteLength; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+              }
+              const base64 = window.btoa(binary);
               
               wsRef.current.send(JSON.stringify({ audio: base64 }));
               

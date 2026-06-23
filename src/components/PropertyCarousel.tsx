@@ -9,9 +9,13 @@ export function PropertyCarousel({ displayedPropertyIds, vertical = false }: { d
   const listRef = useRef<HTMLDivElement>(null);
 
   // Filter properties if displayedPropertyIds (now containing names) is provided and not empty
-  const propertiesToShow = displayedPropertyIds && displayedPropertyIds.length > 0 
+  let propertiesToShow = displayedPropertyIds && displayedPropertyIds.length > 0 
     ? MOCK_PROPERTIES.filter(p => displayedPropertyIds.some(name => p.title.toLowerCase().includes(name.toLowerCase()) || p.location.toLowerCase().includes(name.toLowerCase())))
     : [];
+    
+  if (displayedPropertyIds && displayedPropertyIds.length > 0 && propertiesToShow.length === 0) {
+     propertiesToShow = MOCK_PROPERTIES; // Fallback if AI sends an invalid name
+  }
 
   useEffect(() => {
     if (displayedPropertyIds && displayedPropertyIds.length > 0 && listRef.current) {
@@ -25,9 +29,15 @@ export function PropertyCarousel({ displayedPropertyIds, vertical = false }: { d
         <h3 className="text-xl font-serif text-[#d4af37] mb-6 tracking-wide drop-shadow-md">Exclusive Residences</h3>
       )}
       
-      <div className={`flex ${vertical ? 'flex-col gap-6' : 'gap-6 overflow-x-auto pb-8 hide-scrollbar snap-x'}`}>
-        <AnimatePresence>
-          {propertiesToShow.map((property, index) => {
+      {propertiesToShow.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 border border-white/5 rounded-xl glass-panel text-slate-400">
+           <Building2 size={24} className="mb-2 opacity-50" />
+           <p className="font-mono text-xs uppercase tracking-widest text-center">Waiting for AI<br/>Recommendations</p>
+        </div>
+      ) : (
+        <div className={`flex ${vertical ? 'flex-col gap-6' : 'gap-6 overflow-x-auto pb-8 hide-scrollbar snap-x'}`}>
+          <AnimatePresence>
+            {propertiesToShow.map((property, index) => {
             const isHighlighted = displayedPropertyIds?.includes(property.id);
             
             return (
@@ -69,6 +79,7 @@ export function PropertyCarousel({ displayedPropertyIds, vertical = false }: { d
           })}
         </AnimatePresence>
       </div>
+      )}
     </div>
   );
 }

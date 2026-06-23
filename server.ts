@@ -57,7 +57,7 @@ wss.on('connection', (ws) => {
       geminiWs?.send(JSON.stringify({
           setup: {
               systemInstruction: {
-                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool. Lead Qualification: Ask for Name, Email, Phone, Budget, City, Property Type. Schedule appointments when suitable." }]
+                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool. Lead Qualification: Ask for Name, Email, Phone, Budget, City, Property Type. Schedule appointments when suitable. Here are the properties available in our elite catalog: 'Aura Expressway Heights', 'Yamuna Expressway Skyvillas'. You must explicitly use these exact names when using display_properties." }]
               },
               tools: [{
                   functionDeclarations: [{
@@ -178,7 +178,7 @@ wss.on('connection', (ws) => {
       if (parsed.audio) {
         geminiWs.send(JSON.stringify({ 
           realtimeInput: { 
-            audio: { mimeType: "audio/pcm;rate=16000", data: parsed.audio }
+            mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: parsed.audio }]
           } 
         }));
       }
