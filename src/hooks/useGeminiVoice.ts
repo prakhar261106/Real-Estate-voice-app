@@ -48,6 +48,7 @@ export function useGeminiVoice() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const isGeminiReadyRef = useRef<boolean>(false);
 
   const cleanup = useCallback(() => {
     if (wsRef.current) {
@@ -69,6 +70,7 @@ export function useGeminiVoice() {
       audioCtxRef.current = null;
     }
     setConnectionState('IDLE');
+    isGeminiReadyRef.current = false;
   }, []);
 
   const floatTo16BitPCM = (float32Array: Float32Array) => {
@@ -150,7 +152,7 @@ export function useGeminiVoice() {
           let audioBuffer: number[] = [];
 
           workletNode.port.onmessage = (event) => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            if (isGeminiReadyRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
               const float32Array: Float32Array = event.data;
               const pcmBuffer = floatTo16BitPCM(float32Array);
               const uint8Array = new Uint8Array(pcmBuffer);
@@ -187,8 +189,6 @@ export function useGeminiVoice() {
           source.connect(workletNode);
           workletNode.connect(inputAudioCtx.destination);
           
-          wsRef.current.send(JSON.stringify({ text: "Hello, Aura. Start the conversation." }));
-          
         } catch (nodeErr) {
           setErrorMsg("Error initializing audio processor.");
           cleanup();
@@ -197,6 +197,13 @@ export function useGeminiVoice() {
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        if (data.type === "GEMINI_READY") {
+           console.log('[Frontend] Gemini connection is READY!');
+           isGeminiReadyRef.current = true;
+           wsRef.current?.send(JSON.stringify({ text: "Hello, Aura. Start the conversation." }));
+           return;
+        }
+
         if (data.error) {
            setErrorMsg(data.error);
            cleanup();

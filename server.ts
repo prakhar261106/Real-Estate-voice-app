@@ -53,6 +53,12 @@ wss.on('connection', (ws) => {
     geminiWs.on('open', () => {
       console.log('[Backend] SUCCESSFULLY connected to Gemini API!');
       reconnectAttempt = 0; // Reset on successful connection
+      
+      // Notify frontend
+      if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "GEMINI_READY" }));
+      }
+      
       // CRITICAL: Every single time the geminiWs fires the 'open' event, you MUST immediately send the setup payload
       geminiWs?.send(JSON.stringify({
           setup: {
@@ -98,33 +104,38 @@ wss.on('connection', (ws) => {
         const response = JSON.parse(rawMsg);
         
         // Deep search for functionCall in Gemini's response payload
-        let functionCall = null;
-        if (response?.toolCall) { functionCall = response.toolCall.functionCalls[0]; }
-        else if (response?.serverContent?.modelTurn?.parts?.[0]?.functionCall) {
-            functionCall = response.serverContent.modelTurn.parts[0].functionCall;
+        let functionCalls: any[] = [];
+        if (response?.toolCall?.functionCalls) { 
+           functionCalls = response.toolCall.functionCalls; 
+        } else if (response?.serverContent?.modelTurn?.parts) {
+           for (const part of response.serverContent.modelTurn.parts) {
+              if (part.functionCall) functionCalls.push(part.functionCall);
+           }
         }
 
-        if (functionCall && functionCall.name === "display_properties") {
-            console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
-            
-            // Send to Frontend React App
-            ws.send(JSON.stringify({ 
-                type: "TOOL_CALL", 
-                name: functionCall.name,
-                args: functionCall.args 
-            }));
-
-            // Reply to Gemini so it continues speaking
-            if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
-                geminiWs.send(JSON.stringify({
-                    toolResponse: {
-                        functionResponses: [{
-                            id: functionCall.id,
-                            name: functionCall.name,
-                            response: { status: "OK", message: "UI Updated on client screen." }
-                        }]
-                    }
+        for (const functionCall of functionCalls) {
+            if (functionCall.name === "display_properties") {
+                console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
+                
+                // Send to Frontend React App
+                ws.send(JSON.stringify({ 
+                    type: "TOOL_CALL", 
+                    name: functionCall.name,
+                    args: functionCall.args 
                 }));
+
+                // Reply to Gemini so it continues speaking
+                if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+                    geminiWs.send(JSON.stringify({
+                        toolResponse: {
+                            functionResponses: [{
+                                id: functionCall.id,
+                                name: functionCall.name,
+                                response: { status: "OK", message: "UI Updated on client screen." }
+                            }]
+                        }
+                    }));
+                }
             }
         }
 
