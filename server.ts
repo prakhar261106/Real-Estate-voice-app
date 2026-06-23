@@ -78,19 +78,29 @@ wss.on('connection', (ws) => {
               ws.send(JSON.stringify({ audio: part.inlineData.data }));
             }
             if (part.functionCall) {
-              ws.send(JSON.stringify({ type: 'TOOL_CALL', data: part.functionCall }));
-              
-              // Automatically send matching tool response for simplicity
-              if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
-                geminiWs.send(JSON.stringify({
-                  toolResponse: {
-                    functionResponses: [{
-                      id: part.functionCall.id,
-                      name: part.functionCall.name,
-                      response: { result: "Property displayed successfully" }
-                    }]
-                  }
+              const call = part.functionCall;
+              if (call.name === 'display_properties') {
+                console.log('[Backend] Forwarding TOOL_CALL to Frontend:', call.args);
+                
+                // 1. Send the command to the React Frontend via the client WebSocket
+                ws.send(JSON.stringify({ 
+                    type: 'TOOL_CALL', 
+                    name: call.name, 
+                    args: call.args 
                 }));
+
+                // 2. MUST send a toolResponse back to Gemini immediately
+                if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+                  geminiWs.send(JSON.stringify({
+                      toolResponse: {
+                          functionResponses: [{
+                              id: call.id,
+                              name: call.name,
+                              response: { status: "Success", message: "UI Updated on client screen." }
+                          }]
+                      }
+                  }));
+                }
               }
             }
           }

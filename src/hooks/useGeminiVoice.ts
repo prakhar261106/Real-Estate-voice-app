@@ -193,18 +193,16 @@ export function useGeminiVoice() {
           return;
         }
 
-        if (data.type === 'TOOL_CALL') {
-          const call = data.data;
-          if (call.name === "display_properties") {
-             const args = call.args;
-             if (args) {
-               if (args.propertyIds) {
-                 setDisplayedPropertyIds(args.propertyIds);
-               }
-               if (args.uiState === 'SHOW_DETAILS' && args.propertyIds && args.propertyIds.length > 0) {
-                 navigate(`/property/${args.propertyIds[0]}`);
-               }
-             }
+        if (data.type === 'TOOL_CALL' && data.name === 'display_properties') {
+          console.log('[Frontend] Received UI Update Command:', data.args);
+          const args = data.args;
+          if (args) {
+            if (args.propertyIds || args.properties) {
+              setDisplayedPropertyIds(args.propertyIds || args.properties || []);
+            }
+            if (args.uiState === 'SHOW_DETAILS' && args.propertyIds && args.propertyIds.length > 0) {
+              navigate(`/property/${args.propertyIds[0]}`);
+            }
           }
         }
 

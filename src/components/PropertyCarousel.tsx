@@ -11,7 +11,7 @@ export function PropertyCarousel({ displayedPropertyIds, vertical = false }: { d
   // Filter properties if displayedPropertyIds is provided and not empty
   const propertiesToShow = displayedPropertyIds && displayedPropertyIds.length > 0 
     ? MOCK_PROPERTIES.filter(p => displayedPropertyIds.includes(p.id))
-    : MOCK_PROPERTIES;
+    : [];
 
   useEffect(() => {
     if (displayedPropertyIds && displayedPropertyIds.length > 0 && listRef.current) {
