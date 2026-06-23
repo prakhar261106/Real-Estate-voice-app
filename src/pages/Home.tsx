@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { TwinkleBackground } from '../components/TwinkleBackground';
 import { OrbCanvas } from '../components/Orb';
 import { PropertyCarousel } from '../components/PropertyCarousel';
@@ -151,8 +152,18 @@ export function Home() {
                    Live Telemetry
                 </h2>
              </div>
-             {/* Instead of a horizontal carousel, make it a vertical stack here */}
-             <PropertyCarousel displayedPropertyIds={displayedPropertyIds} vertical />
+             <AnimatePresence>
+                {displayedPropertyIds.length > 0 && (
+                   <motion.div
+                      initial={{ opacity: 0, x: 50 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 50 }}
+                      transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                   >
+                     <PropertyCarousel displayedPropertyIds={displayedPropertyIds} vertical />
+                   </motion.div>
+                )}
+             </AnimatePresence>
           </div>
 
         </div>
