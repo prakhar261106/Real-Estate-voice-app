@@ -190,10 +190,6 @@ export function useGeminiVoice() {
         if (data.type === 'TOOL_CALL' && data.name === 'display_properties') {
           console.log('[Frontend] Received UI Update Command:', data.args);
           window.dispatchEvent(new CustomEvent('AI_UI_UPDATE', { detail: data.args }));
-          const args = data.args;
-          if (args && args.uiState === 'SHOW_DETAILS' && args.ids && args.ids.length > 0) {
-            navigate(`/property/${args.ids[0]}`);
-          }
         }
 
         if (data.text) {

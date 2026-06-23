@@ -42,26 +42,35 @@ wss.on('connection', (ws) => {
       // CRITICAL: Every single time the geminiWs fires the 'open' event, you MUST immediately send the setup payload
       geminiWs?.send(JSON.stringify({
           setup: {
-              tools: [{ 
-                functionDeclarations: [{ 
-                  name: "display_properties", 
-                  description: "Trigger this to show properties on the UI.",
-                  parameters: { 
-                      type: "OBJECT", 
-                      properties: { 
-                          ids: { type: "ARRAY", items: { type: "STRING" } },
-                          uiState: { type: "STRING", description: "State of UI, e.g., 'SHOW_LIST', 'SHOW_DETAILS'" }
-                      },
-                      required: ["ids", "uiState"]
-                  }
-                }]
+              systemInstruction: {
+                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool." }]
+              },
+              tools: [{
+                  functionDeclarations: [{
+                      name: "display_properties",
+                      description: "Trigger this to show specific properties on the user's screen.",
+                      parameters: {
+                          type: "OBJECT",
+                          properties: {
+                              property_names: {
+                                  type: "ARRAY",
+                                  items: { type: "STRING" },
+                                  description: "List of property names to display"
+                              }
+                          },
+                          required: ["property_names"]
+                      }
+                  }]
               }],
               generationConfig: {
                   responseModalities: ["AUDIO"],
-                  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } // Force Aoede on EVERY connect
-              },
-              systemInstruction: {
-                parts: [{ text: "Role: You are an expert, highly intelligent Real Estate Consultant. Speak entirely in natural, conversational Hindi mixed with English. Keep responses under 20 seconds. Focus on budget, location, property type, and pushing for a site visit. CRITICAL INSTRUCTION: Whenever you discuss or suggest a specific property or location, YOU MUST immediately execute the 'display_properties' function call. Do not just speak about it, call the tool." }]
+                  speechConfig: {
+                      voiceConfig: {
+                          prebuiltVoiceConfig: {
+                              voiceName: "Aoede" // Locks to professional female voice
+                          }
+                      }
+                  }
               }
           }
       }));

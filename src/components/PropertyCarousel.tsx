@@ -8,9 +8,9 @@ export function PropertyCarousel({ displayedPropertyIds, vertical = false }: { d
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter properties if displayedPropertyIds is provided and not empty
+  // Filter properties if displayedPropertyIds (now containing names) is provided and not empty
   const propertiesToShow = displayedPropertyIds && displayedPropertyIds.length > 0 
-    ? MOCK_PROPERTIES.filter(p => displayedPropertyIds.includes(p.id))
+    ? MOCK_PROPERTIES.filter(p => displayedPropertyIds.some(name => p.title.toLowerCase().includes(name.toLowerCase()) || p.location.toLowerCase().includes(name.toLowerCase())))
     : [];
 
   useEffect(() => {
