@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import * as path from 'path';
+import { MOCK_PROPERTIES } from './src/data';
 
 const app = express();
 const server = createServer(app);
@@ -50,12 +51,22 @@ wss.on('connection', (ws) => {
       const setupMessage = {
           setup: {
               model: "models/gemini-2.0-flash-exp",
-              systemInstruction: { parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. You MUST use the display_properties tool when suggesting any property." }] },
+              systemInstruction: { parts: [{ text: `You are Aura, an elite AI Real Estate Consultant. You MUST use the display_properties tool when suggesting any property to the user. You can also use navigate_to_property_details to take the user to a detailed view of a property they're interested in, or navigate_to_home to return to the search view. Available properties: ${JSON.stringify(MOCK_PROPERTIES)}` }] },
               tools: [{
                   functionDeclarations: [{
                       name: "display_properties",
-                      description: "Updates the frontend UI to show properties.",
-                      parameters: { type: "OBJECT", properties: { location: { type: "STRING" } }, required: ["location"] }
+                      description: "Updates the frontend UI to show properties. Call this when suggesting properties.",
+                      parameters: { type: "OBJECT", properties: { locations: { type: "ARRAY", items: { type: "STRING" }, description: "List of locations or property titles" } }, required: ["locations"] }
+                  },
+                  {
+                      name: "navigate_to_property_details",
+                      description: "Navigates to the details page of a specific property.",
+                      parameters: { type: "OBJECT", properties: { property_title: { type: "STRING", description: "The full title of the property" } }, required: ["property_title"] }
+                  },
+                  {
+                      name: "navigate_to_home",
+                      description: "Navigates back to the home page, optionally showing specific property locations.",
+                      parameters: { type: "OBJECT", properties: { locations: { type: "ARRAY", items: { type: "STRING" }, description: "Optional list of locations or property titles to pre-filter on the home page." } } }
                   }]
               }],
               generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }
@@ -88,13 +99,16 @@ wss.on('connection', (ws) => {
            functionCall = response.serverContent.modelTurn.parts[0].functionCall;
         }
 
-        if (functionCall && functionCall.name === "display_properties") {
+        if (functionCall && (functionCall.name === "display_properties" || functionCall.name === "navigate_to_property_details" || functionCall.name === "navigate_to_home" || functionCall.name === "filter_properties")) {
             console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
             
             // Send to Frontend React App
             ws.send(JSON.stringify({ 
                 type: "TOOL_CALL", 
-                data: functionCall.args 
+                data: {
+                    name: functionCall.name,
+                    args: functionCall.args
+                }
             }));
 
             // Reply to Gemini so it continues speaking
