@@ -46,6 +46,8 @@ wss.on('connection', (ws) => {
   let reconnectAttempt = 0;
   const maxReconnectAttempts = 10;
   
+  let isGeminiReady = false;
+  
   function connectGemini() {
     console.log('[Backend] Attempting to connect to Gemini API...');
     geminiWs = new WebSocket(url);
@@ -54,31 +56,21 @@ wss.on('connection', (ws) => {
       console.log('[Backend] SUCCESSFULLY connected to Gemini API!');
       reconnectAttempt = 0; // Reset on successful connection
       
-      // Notify frontend
-      if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "GEMINI_READY" }));
-      }
-      
-      // CRITICAL: Every single time the geminiWs fires the 'open' event, you MUST immediately send the setup payload
-      geminiWs?.send(JSON.stringify({
+      const setupMessage = {
           setup: {
               systemInstruction: {
-                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool. Lead Qualification: Ask for Name, Email, Phone, Budget, City, Property Type. Schedule appointments when suitable. Here are the properties available in our elite catalog: 'Aura Expressway Heights', 'Yamuna Expressway Skyvillas'. You must explicitly use these exact names when using display_properties." }]
+                  parts: [{ text: "You are Aura, an AI Real Estate Consultant. Keep answers brief. Use the display_properties tool when suggesting locations." }]
               },
               tools: [{
                   functionDeclarations: [{
                       name: "display_properties",
-                      description: "Trigger this to show specific properties on the user's screen.",
+                      description: "Update the UI with property details.",
                       parameters: {
                           type: "OBJECT",
                           properties: {
-                              property_names: {
-                                  type: "ARRAY",
-                                  items: { type: "STRING" },
-                                  description: "List of property names to display"
-                              }
+                              location: { type: "STRING" }
                           },
-                          required: ["property_names"]
+                          required: ["location"]
                       }
                   }]
               }],
@@ -87,13 +79,21 @@ wss.on('connection', (ws) => {
                   speechConfig: {
                       voiceConfig: {
                           prebuiltVoiceConfig: {
-                              voiceName: "Aoede" // Locks to professional female voice
+                              voiceName: "Aoede"
                           }
                       }
                   }
               }
           }
-      }));
+      };
+
+      geminiWs?.send(JSON.stringify(setupMessage));
+      isGeminiReady = true;
+
+      // Notify frontend
+      if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "GEMINI_READY" }));
+      }
     });
 
     geminiWs.on('message', (data, isBinary) => {
@@ -187,6 +187,10 @@ wss.on('connection', (ws) => {
     try {
       const parsed = JSON.parse(message.toString());
       if (parsed.audio) {
+        if (!isGeminiReady) {
+            console.warn('[Backend] Gemini not ready. Dropping early audio chunk.');
+            return;
+        }
         geminiWs.send(JSON.stringify({ 
           realtimeInput: { 
             mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: parsed.audio }]

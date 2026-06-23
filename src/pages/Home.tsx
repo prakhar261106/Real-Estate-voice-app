@@ -22,7 +22,7 @@ export function Home() {
   React.useEffect(() => {
       const handleUIUpdate = (event: any) => {
           console.log("Global Event Caught! Updating UI:", event.detail);
-          setDisplayedPropertyIds(event.detail.property_names || []);
+          setDisplayedPropertyIds(event.detail.location ? [event.detail.location] : []);
       };
       window.addEventListener('AI_UI_UPDATE', handleUIUpdate);
       return () => window.removeEventListener('AI_UI_UPDATE', handleUIUpdate);
