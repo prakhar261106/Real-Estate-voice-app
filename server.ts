@@ -38,17 +38,15 @@ wss.on('connection', (ws) => {
         },
         tools: [{
           functionDeclarations: [{
-            name: "highlight_property",
-            description: "Highlights a specific property on the user's screen when discussing it.",
+            name: "display_properties",
+            description: "Call this whenever you mention specific real estate properties, zones, or investment options to show them on the user's screen.",
             parameters: {
               type: "OBJECT",
               properties: {
-                property_id: {
-                  type: "STRING",
-                  description: "The unique ID of the property to highlight (e.g., 'prop_1')"
-                }
+                propertyIds: { type: "ARRAY", items: { type: "STRING" } },
+                uiState: { type: "STRING", description: "State of UI, e.g., 'SHOW_LIST', 'SHOW_DETAILS'" }
               },
-              required: ["property_id"]
+              required: ["propertyIds", "uiState"]
             }
           }]
         }],
@@ -80,7 +78,7 @@ wss.on('connection', (ws) => {
               ws.send(JSON.stringify({ audio: part.inlineData.data }));
             }
             if (part.functionCall) {
-              ws.send(JSON.stringify({ functionCall: part.functionCall }));
+              ws.send(JSON.stringify({ type: 'TOOL_CALL', data: part.functionCall }));
               
               // Automatically send matching tool response for simplicity
               if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
@@ -89,7 +87,7 @@ wss.on('connection', (ws) => {
                     functionResponses: [{
                       id: part.functionCall.id,
                       name: part.functionCall.name,
-                      response: { result: "Property highlighted successfully" }
+                      response: { result: "Property displayed successfully" }
                     }]
                   }
                 }));
@@ -162,8 +160,9 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Backend] Server & WebSockets running on port ${PORT}`);
+  const portNum = typeof PORT === 'string' ? parseInt(PORT, 10) : PORT;
+  server.listen(portNum, '0.0.0.0', () => {
+    console.log(`[Backend] Server & WebSockets running on port ${portNum}`);
   });
 }
 

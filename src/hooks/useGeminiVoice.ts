@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { AudioBufferQueue } from '../AudioQueue';
 import { TranscriptMessage, ConnectionState } from '../types';
@@ -40,8 +41,9 @@ export function useGeminiVoice() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('IDLE');
   const [serverState, setServerState] = useState<'LISTENING' | 'SPEAKING'>('LISTENING');
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
-  const [highlightedPropertyId, setHighlightedPropertyId] = useState<string | undefined>();
+  const [displayedPropertyIds, setDisplayedPropertyIds] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
+  const navigate = useNavigate();
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -191,11 +193,17 @@ export function useGeminiVoice() {
           return;
         }
 
-        if (data.functionCall) {
-          if (data.functionCall.name === "highlight_property") {
-             const args = data.functionCall.args;
-             if (args && args.property_id) {
-               setHighlightedPropertyId(args.property_id);
+        if (data.type === 'TOOL_CALL') {
+          const call = data.data;
+          if (call.name === "display_properties") {
+             const args = call.args;
+             if (args) {
+               if (args.propertyIds) {
+                 setDisplayedPropertyIds(args.propertyIds);
+               }
+               if (args.uiState === 'SHOW_DETAILS' && args.propertyIds && args.propertyIds.length > 0) {
+                 navigate(`/property/${args.propertyIds[0]}`);
+               }
              }
           }
         }
@@ -267,7 +275,7 @@ export function useGeminiVoice() {
     connectionState,
     serverState,
     messages,
-    highlightedPropertyId,
+    displayedPropertyIds,
     errorMsg,
     startSession,
     cleanup,

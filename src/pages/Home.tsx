@@ -9,7 +9,7 @@ export function Home() {
   const {
     connectionState,
     serverState,
-    highlightedPropertyId,
+    displayedPropertyIds,
     errorMsg,
     startSession,
     cleanup
@@ -99,7 +99,7 @@ export function Home() {
                 </h2>
              </div>
              {/* Instead of a horizontal carousel, make it a vertical stack here */}
-             <PropertyCarousel highlightedPropertyId={highlightedPropertyId} vertical />
+             <PropertyCarousel displayedPropertyIds={displayedPropertyIds} vertical />
           </div>
 
         </div>
