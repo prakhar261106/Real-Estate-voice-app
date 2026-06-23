@@ -33,28 +33,28 @@ wss.on('connection', (ws) => {
     const setupMsg = {
       setup: {
         model: "models/gemini-3.1-flash-live-preview",
+        systemInstruction: {
+          parts: [{ text: "Role: You are an expert, highly intelligent Real Estate Consultant. Speak entirely in natural, conversational Hindi mixed with English. Keep responses under 20 seconds. Focus on budget, location, property type, and pushing for a site visit. CRITICAL INSTRUCTION: Whenever you discuss a specific property, you MUST execute the highlight_property function call with its ID to show it to the user." }]
+        },
+        tools: [{
+          functionDeclarations: [{
+            name: "highlight_property",
+            description: "Highlights a specific property on the user's screen when discussing it.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                property_id: {
+                  type: "STRING",
+                  description: "The unique ID of the property to highlight (e.g., 'prop_1')"
+                }
+              },
+              required: ["property_id"]
+            }
+          }]
+        }],
         generationConfig: {
           responseModalities: ["AUDIO", "TEXT"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
-          systemInstruction: {
-            parts: [{ text: "Role: Ultra-Premium Real Estate AI Consultant. You speak conversational Hinglish smoothly. Goal: Understand the user's needs, explain property dimensions and localities in extreme detail, and push for a site visit. CRITICAL INSTRUCTION: Whenever you discuss a specific property, you MUST execute the highlight_property function call with its ID to show it to the user. Keep audio responses under 20 seconds." }]
-          },
-          tools: [{
-            functionDeclarations: [{
-              name: "highlight_property",
-              description: "Highlights a specific property on the user's screen when discussing it.",
-              parameters: {
-                type: "OBJECT",
-                properties: {
-                  property_id: {
-                    type: "STRING",
-                    description: "The unique ID of the property to highlight (e.g., 'prop_1')"
-                  }
-                },
-                required: ["property_id"]
-              }
-            }]
-          }]
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
         }
       }
     };
