@@ -120,7 +120,7 @@ wss.on('connection', (ws) => {
       if (parsed.audio) {
         geminiWs.send(JSON.stringify({ 
           realtimeInput: { 
-            mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: parsed.audio }] 
+            audio: { mimeType: "audio/pcm;rate=16000", data: parsed.audio }
           } 
         }));
       }
