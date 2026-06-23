@@ -169,7 +169,7 @@ export function useGeminiVoice() {
                  }
                  const base64 = window.btoa(binary);
                  
-                 wsRef.current.send(JSON.stringify({ audio: base64 }));
+                 wsRef.current.send(JSON.stringify({ type: 'audio', data: base64 }));
                  audioBuffer = []; // Reset buffer
               }
               
@@ -180,7 +180,7 @@ export function useGeminiVoice() {
               }
               
               if (maxAmp > 0.05 && globalAudioStreamer.isCurrentlyPlaying()) {
-                wsRef.current.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+                wsRef.current.send(JSON.stringify({ type: 'barge_in' }));
                 globalAudioStreamer.stopAll();
               }
             }
@@ -200,7 +200,7 @@ export function useGeminiVoice() {
         if (data.type === "GEMINI_READY") {
            console.log('[Frontend] Gemini connection is READY!');
            isGeminiReadyRef.current = true;
-           wsRef.current?.send(JSON.stringify({ text: "Hello, Aura. Start the conversation." }));
+           wsRef.current?.send(JSON.stringify({ type: 'text', text: "Hello Aura, I am connected. Please introduce yourself briefly." }));
            return;
         }
 
@@ -215,9 +215,9 @@ export function useGeminiVoice() {
           return;
         }
 
-        if (data.type === 'TOOL_CALL' && data.name === 'display_properties') {
-          console.log('[Frontend] Received UI Update Command:', data.args);
-          window.dispatchEvent(new CustomEvent('AI_UI_UPDATE', { detail: data.args }));
+        if (data.type === 'TOOL_CALL') {
+          console.log('[Frontend] Received UI Update Command:', data.data);
+          window.dispatchEvent(new CustomEvent('AI_UI_UPDATE', { detail: data.data }));
         }
 
         if (data.text) {
@@ -272,9 +272,7 @@ export function useGeminiVoice() {
     }]);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ text }));
-      // Tell server the turn is complete so it processes it
-      wsRef.current.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+      wsRef.current.send(JSON.stringify({ type: 'text', text: text }));
     }
   }, []);
 

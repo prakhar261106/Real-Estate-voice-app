@@ -11,8 +11,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-
-
 app.get('/api/debug', (req, res) => {
   res.json({
     memory_usage: process.memoryUsage(),
@@ -39,7 +37,7 @@ wss.on('connection', (ws) => {
   let reconnectAttempt = 0;
   const maxReconnectAttempts = 10;
   
-  let isGeminiReady = false;
+  let isSetupComplete = false;
   
   function connectGemini() {
     console.log('[Backend] Attempting to connect to Gemini API...');
@@ -51,42 +49,21 @@ wss.on('connection', (ws) => {
       
       const setupMessage = {
           setup: {
-              systemInstruction: {
-                  parts: [{ text: "You are Aura, an AI Real Estate Consultant. Keep answers brief. Use the display_properties tool when suggesting locations." }]
-              },
+              model: "models/gemini-2.0-flash-exp",
+              systemInstruction: { parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. You MUST use the display_properties tool when suggesting any property." }] },
               tools: [{
                   functionDeclarations: [{
                       name: "display_properties",
-                      description: "Update the UI with property details.",
-                      parameters: {
-                          type: "OBJECT",
-                          properties: {
-                              location: { type: "STRING" }
-                          },
-                          required: ["location"]
-                      }
+                      description: "Updates the frontend UI to show properties.",
+                      parameters: { type: "OBJECT", properties: { location: { type: "STRING" } }, required: ["location"] }
                   }]
               }],
-              generationConfig: {
-                  responseModalities: ["AUDIO"],
-                  speechConfig: {
-                      voiceConfig: {
-                          prebuiltVoiceConfig: {
-                              voiceName: "Aoede"
-                          }
-                      }
-                  }
-              }
+              generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }
           }
       };
 
       geminiWs?.send(JSON.stringify(setupMessage));
-      isGeminiReady = true;
-
-      // Notify frontend
-      if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "GEMINI_READY" }));
-      }
+      isSetupComplete = true;
     });
 
     geminiWs.on('message', (data, isBinary) => {
@@ -96,39 +73,41 @@ wss.on('connection', (ws) => {
         const rawMsg = data.toString();
         const response = JSON.parse(rawMsg);
         
-        // Deep search for functionCall in Gemini's response payload
-        let functionCalls: any[] = [];
-        if (response?.toolCall?.functionCalls) { 
-           functionCalls = response.toolCall.functionCalls; 
-        } else if (response?.serverContent?.modelTurn?.parts) {
-           for (const part of response.serverContent.modelTurn.parts) {
-              if (part.functionCall) functionCalls.push(part.functionCall);
-           }
+        console.log('[Backend] Received message from Gemini:', Object.keys(response));
+        if (response.setupComplete) {
+            console.log('[Backend] Gemini Setup Complete!');
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "GEMINI_READY" }));
+            }
+        }
+        
+        let functionCall = null;
+        if (response?.toolCall) { 
+           functionCall = response.toolCall.functionCalls[0]; 
+        } else if (response?.serverContent?.modelTurn?.parts?.[0]?.functionCall) {
+           functionCall = response.serverContent.modelTurn.parts[0].functionCall;
         }
 
-        for (const functionCall of functionCalls) {
-            if (functionCall.name === "display_properties") {
-                console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
-                
-                // Send to Frontend React App
-                ws.send(JSON.stringify({ 
-                    type: "TOOL_CALL", 
-                    name: functionCall.name,
-                    args: functionCall.args 
-                }));
+        if (functionCall && functionCall.name === "display_properties") {
+            console.log("🛠️ TOOL CALL DETECTED:", functionCall.args);
+            
+            // Send to Frontend React App
+            ws.send(JSON.stringify({ 
+                type: "TOOL_CALL", 
+                data: functionCall.args 
+            }));
 
-                // Reply to Gemini so it continues speaking
-                if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
-                    geminiWs.send(JSON.stringify({
-                        toolResponse: {
-                            functionResponses: [{
-                                id: functionCall.id,
-                                name: functionCall.name,
-                                response: { status: "OK", message: "UI Updated on client screen." }
-                            }]
-                        }
-                    }));
-                }
+            // Reply to Gemini so it continues speaking
+            if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+                geminiWs.send(JSON.stringify({
+                    toolResponse: {
+                        functionResponses: [{
+                            id: functionCall.id,
+                            name: functionCall.name,
+                            response: { result: "success", message: "UI Updated on client screen." }
+                        }]
+                    }
+                }));
             }
         }
 
@@ -155,7 +134,7 @@ wss.on('connection', (ws) => {
     });
 
     geminiWs.on('close', (code, reason) => {
-      console.log(`[Backend] Gemini API Connection Closed. Code: ${code}, Reason: ${reason}`);
+      console.log(`[Backend] Gemini API Connection Closed. Code: ${code}, Reason: ${reason.toString()}`);
       if (ws.readyState === WebSocket.OPEN && reconnectAttempt < maxReconnectAttempts) {
          reconnectAttempt++;
          const backoffMs = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), 30000); // 1s, 2s, 4s, 8s, 16s, 30s
@@ -178,31 +157,45 @@ wss.on('connection', (ws) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN) return;
     
     try {
-      const parsed = JSON.parse(message.toString());
-      if (parsed.audio) {
-        if (!isGeminiReady) {
-            console.warn('[Backend] Gemini not ready. Dropping early audio chunk.');
-            return;
+        const msg = JSON.parse(message.toString());
+
+        // 1. Handle Audio Chunks
+        if (msg.type === 'audio' && msg.data) {
+            if (!isSetupComplete) {
+                console.warn('[Backend] Gemini not ready. Dropping early audio chunk.');
+                return;
+            }
+            geminiWs.send(JSON.stringify({
+                realtimeInput: {
+                    mediaChunks: [{
+                        mimeType: "audio/pcm;rate=16000",
+                        data: msg.data
+                    }]
+                }
+            }));
         }
-        geminiWs.send(JSON.stringify({ 
-          realtimeInput: { 
-            mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: parsed.audio }]
-          } 
-        }));
-      }
-      if (parsed.text) {
-        geminiWs.send(JSON.stringify({ 
-          clientContent: { 
-            turns: [{ role: "user", parts: [{ text: parsed.text }] }],
-            turnComplete: true 
-          } 
-        }));
-      }
-      if (parsed.clientContent && parsed.clientContent.turnComplete) {
-        geminiWs.send(JSON.stringify({ clientContent: { turnComplete: true } }));
-      }
+
+        // 2. Handle Text Inputs
+        if (msg.type === 'text' && msg.text) {
+            geminiWs.send(JSON.stringify({
+                clientContent: {
+                    turns: [{
+                        role: "user",
+                        parts: [{ text: msg.text }]
+                    }],
+                    turnComplete: true
+                }
+            }));
+        }
+
+        // 3. Handle Barge-in (Turn Complete)
+        if (msg.type === 'barge_in') {
+            geminiWs.send(JSON.stringify({
+                clientContent: { turnComplete: true }
+            }));
+        }
     } catch (err) {
-      console.error(err);
+        console.error('[Backend] Error parsing client message:', err);
     }
   });
 
@@ -247,3 +240,4 @@ process.on("unhandledRejection", (err) => {
 process.on("warning", (warning) => {
   console.error("NODE WARNING:", warning);
 });
+
