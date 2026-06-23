@@ -20,6 +20,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/debug', (req, res) => {
+  res.json({
+    memory_usage: process.memoryUsage(),
+    active_sessions: wss.clients.size,
+    websocket_connections: wss.clients.size,
+    gemini_status: "online",
+    database_status: "connected"
+  });
+});
+
 wss.on('connection', (ws) => {
   console.log('[Backend] New WebSocket connection established!');
   let geminiWs: WebSocket | null = null;
@@ -33,17 +43,21 @@ wss.on('connection', (ws) => {
 
   const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
   
+  let reconnectAttempt = 0;
+  const maxReconnectAttempts = 10;
+  
   function connectGemini() {
     console.log('[Backend] Attempting to connect to Gemini API...');
     geminiWs = new WebSocket(url);
 
     geminiWs.on('open', () => {
       console.log('[Backend] SUCCESSFULLY connected to Gemini API!');
+      reconnectAttempt = 0; // Reset on successful connection
       // CRITICAL: Every single time the geminiWs fires the 'open' event, you MUST immediately send the setup payload
       geminiWs?.send(JSON.stringify({
           setup: {
               systemInstruction: {
-                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool." }]
+                  parts: [{ text: "You are Aura, an elite AI Real Estate Consultant. Keep answers brief. Whenever you suggest a location or property, YOU MUST use the display_properties tool. Lead Qualification: Ask for Name, Email, Phone, Budget, City, Property Type. Schedule appointments when suitable." }]
               },
               tools: [{
                   functionDeclarations: [{
@@ -138,9 +152,14 @@ wss.on('connection', (ws) => {
 
     geminiWs.on('close', (code, reason) => {
       console.log(`[Backend] Gemini API Connection Closed. Code: ${code}, Reason: ${reason}`);
-      if (ws.readyState === WebSocket.OPEN) {
-         console.log('[Backend] Reconnecting to Gemini API...');
-         connectGemini();
+      if (ws.readyState === WebSocket.OPEN && reconnectAttempt < maxReconnectAttempts) {
+         reconnectAttempt++;
+         const backoffMs = Math.min(1000 * Math.pow(2, reconnectAttempt - 1), 30000); // 1s, 2s, 4s, 8s, 16s, 30s
+         console.log(`[Backend] Reconnecting to Gemini API in ${backoffMs}ms... (Attempt ${reconnectAttempt} of ${maxReconnectAttempts})`);
+         setTimeout(connectGemini, backoffMs);
+      } else if (reconnectAttempt >= maxReconnectAttempts) {
+         console.error('[Backend] Maximum Gemini reconnect attempts reached.');
+         ws.send(JSON.stringify({ error: "Failed to reconnect to Gemini after multiple attempts." }));
       }
     });
 

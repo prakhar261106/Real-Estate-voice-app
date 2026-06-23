@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TwinkleBackground } from '../components/TwinkleBackground';
 import { OrbCanvas } from '../components/Orb';
 import { PropertyCarousel } from '../components/PropertyCarousel';
-import { Filter, Home as HomeIcon, MapPin, DollarSign } from 'lucide-react';
+import { Filter, Home as HomeIcon, MapPin, DollarSign, Activity } from 'lucide-react';
 import { useGeminiVoice } from '../hooks/useGeminiVoice';
+import { DebugPanel } from '../components/DebugPanel';
 
 export function Home() {
-  const [displayedPropertyIds, setDisplayedPropertyIds] = React.useState<string[]>([]);
+  const [displayedPropertyIds, setDisplayedPropertyIds] = useState<string[]>([]);
+  const [isDebugVisible, setIsDebugVisible] = useState(false);
+  
   const {
     connectionState,
     serverState,
@@ -33,6 +36,8 @@ export function Home() {
   return (
     <>
       <TwinkleBackground />
+      <DebugPanel isVisible={isDebugVisible} onClose={() => setIsDebugVisible(false)} />
+      
       <div className="min-h-screen w-full flex flex-col relative z-10 p-4 lg:p-6 lg:overflow-hidden overflow-y-auto">
         
         {/* Top Header */}
@@ -43,9 +48,18 @@ export function Home() {
             </h1>
             <p className="text-[10px] lg:text-xs font-sans tracking-[0.3em] font-medium text-[#06b6d4] uppercase mt-1">Terminal 01</p>
           </div>
-          <div className="glass-panel px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${connectionState === 'CONNECTED' ? 'bg-[#06b6d4] shadow-[0_0_8px_#06b6d4]' : 'bg-red-500'}`} />
-            <span className="text-[10px] lg:text-xs font-mono text-slate-300 uppercase tracking-widest">{connectionState}</span>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsDebugVisible(prev => !prev)}
+              className="glass-panel px-2 py-1.5 lg:px-3 lg:py-2 rounded-full border border-[#06b6d4]/30 hover:bg-[#06b6d4]/10 transition-colors flex items-center gap-2"
+            >
+              <Activity size={12} className="text-[#06b6d4]" />
+              <span className="hidden lg:inline text-[10px] font-mono text-[#06b6d4] uppercase tracking-widest leading-none">Diagnostics</span>
+            </button>
+            <div className="glass-panel px-3 py-1.5 lg:px-4 lg:py-2 rounded-full border border-white/10 flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${connectionState === 'CONNECTED' ? 'bg-[#06b6d4] shadow-[0_0_8px_#06b6d4]' : 'bg-red-500'}`} />
+              <span className="text-[10px] lg:text-xs font-mono text-slate-300 uppercase tracking-widest">{connectionState}</span>
+            </div>
           </div>
         </header>
 
