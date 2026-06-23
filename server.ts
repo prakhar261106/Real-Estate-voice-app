@@ -7,11 +7,12 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/api/voice' });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
 wss.on('connection', (ws) => {
+  console.log('[Backend] New WebSocket connection established!');
   let geminiWs: WebSocket | null = null;
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 
@@ -159,7 +160,7 @@ async function startServer() {
   }
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[Backend] Server & WebSockets running on port ${PORT}`);
   });
 }
 
