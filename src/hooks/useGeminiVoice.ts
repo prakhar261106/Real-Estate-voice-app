@@ -133,7 +133,9 @@ export function useGeminiVoice() {
       }
 
       // 3. Establish WebSocket connection
-      const WS_URL = import.meta.env.VITE_BACKEND_WS_URL || "ws://localhost:3001/api/voice";
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const WS_URL = `${protocol}//${host}/api/voice`;
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
 
