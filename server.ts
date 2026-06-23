@@ -11,14 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: "healthy",
-    gemini: "connected",
-    websocket: "active",
-    database: "connected"
-  });
-});
+
 
 app.get('/api/debug', (req, res) => {
   res.json({
