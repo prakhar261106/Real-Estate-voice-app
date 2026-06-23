@@ -1,0 +1,6 @@
+{
+  "name": "Aura Real Estate - AI Voice Agent",
+  "description": "Real-time voice-activated AI Real Estate Agent using Gemini Live API over WebSockets, conversing in Hindi/English.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
