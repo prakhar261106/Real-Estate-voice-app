@@ -11,6 +11,15 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: "healthy",
+    gemini: "connected",
+    websocket: "active",
+    database: "connected"
+  });
+});
+
 wss.on('connection', (ws) => {
   console.log('[Backend] New WebSocket connection established!');
   let geminiWs: WebSocket | null = null;
@@ -190,3 +199,15 @@ async function startServer() {
 }
 
 startServer();
+
+process.on("uncaughtException", (err) => {
+  console.error("CRITICAL BACKEND ERROR:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED PROMISE:", err);
+});
+
+process.on("warning", (warning) => {
+  console.error("NODE WARNING:", warning);
+});

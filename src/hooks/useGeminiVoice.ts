@@ -97,6 +97,7 @@ export function useGeminiVoice() {
       const inputAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioCtxRef.current = inputAudioCtx;
       
+      const outCtx = await globalAudioStreamer.initializeAndResume();
       globalAudioStreamer.setOnStateChange(setServerState);
 
       // 2. Request microphone
@@ -117,10 +118,7 @@ export function useGeminiVoice() {
         await inputAudioCtx.resume();
         console.log('[Frontend] Input AudioContext resumed successfully.');
       }
-      if (globalAudioStreamer.getContext().state === 'suspended') {
-        await globalAudioStreamer.getContext().resume();
-        console.log('[Frontend] Output AudioContext resumed successfully.');
-      }
+      console.log('[Frontend] Output AudioContext is ready.');
 
       try {
         const workletUrl = getWorkletUrl();

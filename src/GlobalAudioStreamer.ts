@@ -1,27 +1,38 @@
 export class GlobalAudioStreamer {
-    private context: AudioContext;
+    private context: AudioContext | null;
     private nextPlayTime: number;
     private bufferQueue: AudioBuffer[];
     private isPlaying: boolean;
     private onStateChange: ((state: 'LISTENING' | 'SPEAKING') => void) | null;
 
-    constructor(audioContext?: AudioContext) {
-        this.context = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    constructor() {
+        this.context = null;
         this.nextPlayTime = 0;
         this.bufferQueue = [];
         this.isPlaying = false;
         this.onStateChange = null;
     }
 
+    public async initializeAndResume() {
+        if (!this.context) {
+             this.context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        }
+        if (this.context.state === "suspended") {
+            await this.context.resume();
+        }
+        return this.context;
+    }
+
     public setOnStateChange(callback: (state: 'LISTENING' | 'SPEAKING') => void) {
         this.onStateChange = callback;
     }
 
-    public getContext(): AudioContext {
+    public getContext(): AudioContext | null {
         return this.context;
     }
 
     public addBase64Chunk(base64String: string) {
+        if (!this.context) return;
         // 1. Convert Base64 to Int16 PCM
         const binaryString = window.atob(base64String);
         const len = binaryString.length;
@@ -42,7 +53,6 @@ export class GlobalAudioStreamer {
         this.bufferQueue.push(audioBuffer);
 
         // 4. Require at least 4 chunks (Jitter Buffer) before starting playback
-        // Added 500ms initial buffering delay as per instructions
         if (!this.isPlaying && this.bufferQueue.length >= 4) {
             this.isPlaying = true;
             if (this.context.state === "suspended") {
@@ -55,6 +65,7 @@ export class GlobalAudioStreamer {
     }
 
     private playNext() {
+        if (!this.context) return;
         if (this.bufferQueue.length === 0) {
             this.isPlaying = false;
             if (this.onStateChange) this.onStateChange('LISTENING');
