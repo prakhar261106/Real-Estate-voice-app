@@ -1,9 +1,8 @@
 export class AudioBufferQueue {
   private audioCtx: AudioContext;
-  private queue: Float32Array[] = [];
   private isPlaying: boolean = false;
   private currentSourceNodes: AudioBufferSourceNode[] = [];
-  private nextStartTime: number = 0;
+  private nextPlayTime: number = 0;
   private onStateChange: (state: 'LISTENING' | 'SPEAKING') => void;
 
   constructor(audioCtx: AudioContext, onStateChange: (state: 'LISTENING' | 'SPEAKING') => void) {
@@ -12,41 +11,28 @@ export class AudioBufferQueue {
   }
 
   public enqueueAndPlay(base64Audio: string) {
-    const arrayBuffer = this.base64ToArrayBuffer(base64Audio);
-    const float32Array = this.pcm16BitToFloat32(arrayBuffer);
-    this.queue.push(float32Array);
-
     if (!this.isPlaying) {
       this.isPlaying = true;
       if (this.audioCtx.state === "suspended") {
         this.audioCtx.resume();
       }
-      this.playNext();
-    }
-  }
-
-  private playNext() {
-    if (this.queue.length === 0) {
-      this.isPlaying = false;
-      this.onStateChange('LISTENING');
-      return;
+      this.nextPlayTime = this.audioCtx.currentTime;
     }
 
-    const chunk = this.queue.shift()!;
-    const audioBuffer = this.audioCtx.createBuffer(1, chunk.length, 24000);
-    audioBuffer.getChannelData(0).set(chunk);
+    const arrayBuffer = this.base64ToArrayBuffer(base64Audio);
+    const float32Array = this.pcm16BitToFloat32(arrayBuffer);
+
+    // Explicitly create buffer with 24000 sample rate
+    const audioBuffer = this.audioCtx.createBuffer(1, float32Array.length, 24000);
+    audioBuffer.getChannelData(0).set(float32Array);
 
     const source = this.audioCtx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(this.audioCtx.destination);
 
-    const currentTime = this.audioCtx.currentTime;
-    if (this.nextStartTime < currentTime) {
-      this.nextStartTime = currentTime;
-    }
-
-    source.start(this.nextStartTime);
-    this.nextStartTime += audioBuffer.duration;
+    const playTime = Math.max(this.audioCtx.currentTime, this.nextPlayTime);
+    source.start(playTime);
+    this.nextPlayTime = playTime + audioBuffer.duration;
 
     this.currentSourceNodes.push(source);
 
@@ -55,7 +41,12 @@ export class AudioBufferQueue {
       if (idx > -1) {
         this.currentSourceNodes.splice(idx, 1);
       }
-      this.playNext();
+      
+      // If we've finished playing everything scheduled, return to listening state
+      if (this.currentSourceNodes.length === 0 && this.audioCtx.currentTime >= this.nextPlayTime) {
+        this.isPlaying = false;
+        this.onStateChange('LISTENING');
+      }
     };
   }
 
@@ -64,9 +55,8 @@ export class AudioBufferQueue {
       try { node.stop(); } catch (e) {}
     });
     this.currentSourceNodes = [];
-    this.queue = [];
     this.isPlaying = false;
-    this.nextStartTime = 0;
+    this.nextPlayTime = 0;
     this.onStateChange('LISTENING');
   }
 

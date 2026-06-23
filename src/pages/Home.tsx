@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TwinkleBackground } from '../components/TwinkleBackground';
 import { OrbCanvas } from '../components/Orb';
-import { TranscriptBox } from '../components/TranscriptBox';
 import { PropertyCarousel } from '../components/PropertyCarousel';
 import { Filter, Home as HomeIcon, MapPin, DollarSign } from 'lucide-react';
 import { useGeminiVoice } from '../hooks/useGeminiVoice';
@@ -10,12 +9,10 @@ export function Home() {
   const {
     connectionState,
     serverState,
-    messages,
     highlightedPropertyId,
     errorMsg,
     startSession,
-    cleanup,
-    sendText
+    cleanup
   } = useGeminiVoice();
 
   const getOrbState = () => {
@@ -74,14 +71,13 @@ export function Home() {
              </div>
           </div>
 
-          {/* Center Panel: Orb and Transcript */}
-          <div className="lg:col-span-6 flex flex-col gap-4 relative lg:h-full lg:overflow-hidden shrink-0">
-            <div className="flex flex-col items-center justify-center shrink-0 h-[220px] lg:h-[300px]">
+          {/* Center Panel: Orb */}
+          <div className="lg:col-span-6 flex flex-col items-center justify-center relative lg:h-full shrink-0">
               <OrbCanvas 
                 state={getOrbState()} 
                 onClick={connectionState === 'IDLE' ? startSession : cleanup} 
               />
-              <div className="mt-4 text-center h-8">
+              <div className="mt-8 text-center h-8">
                 {connectionState === 'IDLE' && <p className="text-slate-400 font-mono text-xs tracking-widest uppercase">Click to Start</p>}
                 {connectionState === 'CONNECTING' && <p className="text-[#8b5cf6] animate-pulse font-mono text-xs tracking-widest uppercase">Requesting Microphone...</p>}
                 {connectionState === 'CONNECTED' && serverState === 'LISTENING' && <p className="text-[#06b6d4] font-mono text-xs tracking-widest uppercase">Connected / Receiving Audio</p>}
@@ -89,16 +85,10 @@ export function Home() {
               </div>
 
               {errorMsg && (
-                <div className="mt-2 max-w-sm p-4 bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-mono tracking-wide rounded-lg backdrop-blur-md">
+                <div className="mt-4 max-w-sm p-4 bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-mono tracking-wide rounded-lg backdrop-blur-md">
                   {errorMsg}
                 </div>
               )}
-            </div>
-
-            {/* Live Transcript at Bottom */}
-            <div className="w-full flex-1 min-h-[350px] lg:min-h-0 lg:overflow-hidden shrink-0">
-              <TranscriptBox messages={messages} onSendText={sendText} />
-            </div>
           </div>
 
           {/* Right Panel: Property Showcase */}
