@@ -53,7 +53,7 @@ wss.on('connection', (ws) => {
           }]
         }],
         generationConfig: {
-          responseModalities: ["AUDIO", "TEXT"],
+          responseModalities: ["AUDIO"],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } }
         }
       }
