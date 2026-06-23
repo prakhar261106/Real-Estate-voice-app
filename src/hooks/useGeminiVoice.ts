@@ -1,8 +1,40 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import workletUrl from '../worklet.js?url';
 import { AudioBufferQueue } from '../AudioQueue';
 import { TranscriptMessage, ConnectionState } from '../types';
+
+const workletCode = `
+class AudioRecorderWorklet extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = 4096;
+    this.buffer = new Float32Array(this.bufferSize);
+    this.bytesWritten = 0;
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input.length > 0) {
+      const channelData = input[0];
+      for (let i = 0; i < channelData.length; i++) {
+        this.buffer[this.bytesWritten++] = channelData[i];
+        if (this.bytesWritten >= this.bufferSize) {
+          this.port.postMessage(this.buffer);
+          this.buffer = new Float32Array(this.bufferSize);
+          this.bytesWritten = 0;
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('audio-recorder-worklet', AudioRecorderWorklet);
+`;
+
+const getWorkletUrl = () => {
+  const blob = new Blob([workletCode], { type: 'application/javascript' });
+  return URL.createObjectURL(blob);
+};
 
 export function useGeminiVoice() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('IDLE');
@@ -91,10 +123,11 @@ export function useGeminiVoice() {
       }
 
       try {
+        const workletUrl = getWorkletUrl();
         await inputAudioCtx.audioWorklet.addModule(workletUrl);
       } catch (err) {
-        console.error("Failed to load AudioWorklet from:", workletUrl, err);
-        setErrorMsg(`Failed to load AudioWorklet (${workletUrl}). Check console for details.`);
+        console.error("Failed to load AudioWorklet from blob URL:", err);
+        setErrorMsg(`Failed to load AudioWorklet via Blob URL. Check console for details.`);
         setConnectionState('IDLE');
         return;
       }
