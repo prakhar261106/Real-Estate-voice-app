@@ -1,10 +1,20 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MOCK_PROPERTIES } from '../data';
 import { ArrowLeft, MapPin, Building2, ShieldCheck, Map, Activity, CheckCircle2, Square } from 'lucide-react';
 import { TwinkleBackground } from '../components/TwinkleBackground';
+import { OrbCanvas } from '../components/Orb';
+import { VoiceContext } from '../App';
 
 export function PropertyDetail() {
+  const {
+    connectionState,
+    serverState,
+    startSession,
+    cleanup,
+    getOrbState
+  } = useContext(VoiceContext);
+
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -185,6 +195,13 @@ export function PropertyDetail() {
            </div>
 
         </div>
+      </div>
+
+      <div className="fixed bottom-6 right-6 w-32 h-32 md:w-40 md:h-40 z-50 pointer-events-auto">
+         <OrbCanvas 
+            state={getOrbState?.() || 'IDLE'} 
+            onClick={connectionState === 'IDLE' ? startSession : cleanup} 
+         />
       </div>
     </div>
   );
