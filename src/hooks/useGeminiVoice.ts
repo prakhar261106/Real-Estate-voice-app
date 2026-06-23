@@ -117,9 +117,11 @@ export function useGeminiVoice() {
       // Resume context if suspended
       if (inputAudioCtx.state === 'suspended') {
         await inputAudioCtx.resume();
+        console.log('[Frontend] Input AudioContext resumed successfully.');
       }
       if (outputAudioCtx.state === 'suspended') {
         await outputAudioCtx.resume();
+        console.log('[Frontend] Output AudioContext resumed successfully.');
       }
 
       try {
@@ -216,6 +218,7 @@ export function useGeminiVoice() {
         }
 
         if (data.audio) {
+           console.log('[Frontend] Received audio chunk from backend, adding to queue...');
            setServerState('SPEAKING');
            audioQueueRef.current?.enqueueAndPlay(data.audio);
         }

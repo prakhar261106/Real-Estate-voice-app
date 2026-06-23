@@ -24,9 +24,11 @@ wss.on('connection', (ws) => {
 
   const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
   
+  console.log('[Backend] Attempting to connect to Gemini API...');
   geminiWs = new WebSocket(url);
 
   geminiWs.on('open', () => {
+    console.log('[Backend] SUCCESSFULLY connected to Gemini API!');
     // Send initial configuration to Gemini
     const setupMsg = {
       setup: {
@@ -101,12 +103,13 @@ wss.on('connection', (ws) => {
     }
   });
 
-  geminiWs.on('close', () => {
+  geminiWs.on('close', (code, reason) => {
+    console.log(`[Backend] Gemini API Connection Closed. Code: ${code}, Reason: ${reason}`);
     ws.close();
   });
 
   geminiWs.on('error', (error) => {
-    console.error("Gemini WS Error", error);
+    console.error('[Backend] Gemini API Connection Error:', error);
   });
 
   ws.on('message', (message) => {
